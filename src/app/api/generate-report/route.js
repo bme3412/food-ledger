@@ -25,32 +25,63 @@ export async function POST(req) {
 
     const { analysis } = body;
 
-    const prompt = `Generate a data-driven nutritional report based on the following analysis data. The report must include:
+    // Parse food log entries to get total quantities
+    const meals = analysis.meals || {};
+    let totalCalories = 0;
+    let totalProtein = 0;
+    let totalCarbs = 0;
+    let totalFat = 0;
 
-1. Overall Daily Grade: Provide an initial grade (A, B, C, D, or F) that reflects overall nutritional adherence.
-2. Summary Tables:
-   - Calories Table: Summarize the total calorie intake for each meal (breakfast, lunch, dinner, snacks) and include the overall total.
-   - Macro Breakdown Table: List Protein, Carbohydrates, and Fats with the amount consumed and the percentage of the daily target achieved.
-3. Recommendations: Provide specific, actionable recommendations for improving nutrition, focusing on food quality, portion sizes, and meal timing.
-4. Data Summary: Offer a concise summary emphasizing key nutritional metrics, particularly calories and macros.
+    // Calculate meal-specific metrics if available
+    const mealMetrics = Object.entries(meals).map(([meal, items]) => {
+      // Assume items are semicolon-separated
+      const foodItems = items.split(';').map(item => item.trim()).filter(Boolean);
+      return {
+        meal: meal.charAt(0).toUpperCase() + meal.slice(1),
+        items: foodItems,
+        itemCount: foodItems.length
+      };
+    });
 
-Meal Data:
-${JSON.stringify(analysis.meals || {}, null, 2)}
+    const prompt = `Generate a detailed nutritional analysis report using the following format:
 
-Macro Distribution Data:
-${JSON.stringify(analysis.macroDistribution, null, 2)}
+**Overall Grade**
+[Provide a letter grade (A, B, C, D, or F) with optional + or - that reflects the overall nutritional quality. Consider meal balance, portion sizes, and nutrient density.]
 
-Food Intake Details:
-${JSON.stringify(analysis.foodBreakdown, null, 2)}
+**Food Log**
+[List the meals as entered, organized by meal time]
+${mealMetrics.map(m => `${m.meal}:\n${m.items.join('\n')}`).join('\n\n')}
 
-Output the report as plain text with clear headings, text-based tables, and bullet points where applicable.`;
+**Nutritional Breakdown**
+[Create a table showing estimated nutritional content for each meal]
+Meal        Calories    Protein(g)    Carbs(g)    Fat(g)
+${mealMetrics.map(m => m.meal).join('\n')}
+Total       [Sum]       [Sum]         [Sum]       [Sum]
+
+**Summary**
+[Provide 3-4 bullet points analyzing:]
+* Overall caloric intake and distribution across meals
+* Macro-nutrient balance
+* Meal timing and portion sizes
+* Food quality and nutrient density
+
+**Recommendations**
+[Provide 3-5 specific, actionable recommendations focusing on:]
+* Portion size adjustments if needed
+* Meal timing suggestions
+* Food quality improvements
+* Macro-nutrient balance optimization
+* Specific food additions or substitutions
+
+Base your analysis on these meal details:
+${JSON.stringify(mealMetrics, null, 2)}`;
 
     try {
       const completion = await openai.chat.completions.create({
         messages: [
           {
             role: "system",
-            content: "You are a data-driven nutritional analysis engine. Your output must be objective, concise, and formatted as plain text with an emphasis on numerical data and clear recommendations."
+            content: "You are a precise nutritional analysis engine. Format your response exactly as requested with markdown-style section headers (**Section**). Provide specific, data-driven analysis and actionable recommendations. Use bullet points for lists and proper spacing for the table format."
           },
           {
             role: "user",
@@ -62,8 +93,10 @@ Output the report as plain text with clear headings, text-based tables, and bull
         max_tokens: 1500
       });
 
+      // Clean up the response format
       const formattedReport = completion.choices[0].message.content
-        .replace(/\n\n\n+/g, '\n\n')
+        .replace(/\n{3,}/g, '\n\n')  // Replace multiple newlines with double newline
+        .replace(/\*\*/g, '**')      // Ensure consistent markdown headers
         .trim();
 
       return NextResponse.json({ 

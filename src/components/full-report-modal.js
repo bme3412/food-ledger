@@ -1,3 +1,5 @@
+'use client';
+
 import React, { useState } from 'react';
 import {
   Dialog,
@@ -12,7 +14,6 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2, XCircle } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
-// Changed function name to match the export
 export function FullReportModal({ analysis }) {
   const [aiReport, setAiReport] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -45,97 +46,138 @@ export function FullReportModal({ analysis }) {
     }
   };
 
+  const parseReport = (reportText) => {
+    if (!reportText) return null;
+
+    const sections = {};
+    let currentSection = '';
+    const lines = reportText.split('\n');
+
+    for (let line of lines) {
+      line = line.trim();
+      if (!line) continue;
+
+      // Check if this is a section header
+      if (line.startsWith('**') && line.endsWith('**')) {
+        currentSection = line.replace(/\*\*/g, '').trim();
+        sections[currentSection] = [];
+      } else {
+        // Add content to current section
+        if (currentSection) {
+          if (line.startsWith('* ')) {
+            line = line.substring(2);
+          }
+          sections[currentSection].push(line);
+        }
+      }
+    }
+
+    return sections;
+  };
+
   const renderReportContent = () => {
     if (!aiReport) return null;
 
-    const sections = aiReport.split('\n\n');
-    const reportData = {
-      grade: sections.find(s => s.includes('Overall Daily Grade'))?.split(':')[1]?.trim() || 'N/A',
-      calories: sections.find(s => s.includes('Calories Table'))?.split('\n').slice(1) || [],
-      macros: sections.find(s => s.includes('Macro Breakdown'))?.split('\n').slice(1) || [],
-      recommendations: sections.find(s => s.includes('Recommendations:'))?.split('\n').slice(1) || [],
-    };
+    const sections = parseReport(aiReport);
+    if (!sections) return null;
 
     return (
       <div className="space-y-6">
         {/* Grade Section */}
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <h3 className="text-xl font-semibold text-gray-900">Overall Grade</h3>
-              <span className="text-2xl font-bold text-blue-600">{reportData.grade}</span>
-            </div>
-          </CardContent>
-        </Card>
+        {sections['Overall Grade'] && (
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xl font-semibold text-gray-900">Overall Grade</h3>
+                <span className="text-2xl font-bold text-blue-600">
+                  {sections['Overall Grade'][0]}
+                </span>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
-        {/* Calories Table */}
-        <Card>
-          <CardContent className="pt-6">
-            <h3 className="text-xl font-semibold text-gray-900 mb-4">Calorie Distribution</h3>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Meal</TableHead>
-                  <TableHead className="text-right">Calories</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {reportData.calories.map((row, index) => {
-                  const [meal, calories] = row.split('|').map(s => s.trim());
-                  return (
-                    <TableRow key={index}>
-                      <TableCell className="font-medium">{meal}</TableCell>
-                      <TableCell className="text-right">{calories}</TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+        {/* Food Log Review */}
+        {sections['Food Log'] && (
+          <Card>
+            <CardContent className="pt-6">
+              <h3 className="text-xl font-semibold text-gray-900 mb-4">Your Food Log</h3>
+              <div className="space-y-4">
+                {sections['Food Log'].map((item, index) => (
+                  <div key={index} className="text-gray-700">{item}</div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
-        {/* Macro Breakdown */}
-        <Card>
-          <CardContent className="pt-6">
-            <h3 className="text-xl font-semibold text-gray-900 mb-4">Macro Distribution</h3>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Nutrient</TableHead>
-                  <TableHead className="text-right">Amount</TableHead>
-                  <TableHead className="text-right">Target %</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {reportData.macros.map((row, index) => {
-                  const [nutrient, amount, percentage] = row.split('|').map(s => s.trim());
-                  return (
-                    <TableRow key={index}>
-                      <TableCell className="font-medium">{nutrient}</TableCell>
-                      <TableCell className="text-right">{amount}</TableCell>
-                      <TableCell className="text-right">{percentage}</TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+        {/* Nutritional Breakdown */}
+        {sections['Nutritional Breakdown'] && (
+          <Card>
+            <CardContent className="pt-6">
+              <h3 className="text-xl font-semibold text-gray-900 mb-4">Nutritional Breakdown</h3>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Meal</TableHead>
+                    <TableHead className="text-right">Calories</TableHead>
+                    <TableHead className="text-right">Protein (g)</TableHead>
+                    <TableHead className="text-right">Carbs (g)</TableHead>
+                    <TableHead className="text-right">Fat (g)</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {sections['Nutritional Breakdown'].map((row, index) => {
+                    const values = row.split(/\s+/);
+                    if (values.length < 5) return null;
+                    const isTotal = values[0].toLowerCase().includes('total');
+                    
+                    return (
+                      <TableRow key={index} className={isTotal ? "font-bold" : ""}>
+                        <TableCell>{values[0]}</TableCell>
+                        <TableCell className="text-right">{values[1]}</TableCell>
+                        <TableCell className="text-right">{values[2]}</TableCell>
+                        <TableCell className="text-right">{values[3]}</TableCell>
+                        <TableCell className="text-right">{values[4]}</TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Summary */}
+        {sections['Summary'] && sections['Summary'].length > 0 && (
+          <Card>
+            <CardContent className="pt-6">
+              <h3 className="text-xl font-semibold text-gray-900 mb-4">Summary</h3>
+              <ul className="space-y-2">
+                {sections['Summary'].map((item, index) => (
+                  <li key={index} className="text-gray-700">{item}</li>
+                ))}
+              </ul>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Recommendations */}
-        <Card>
-          <CardContent className="pt-6">
-            <h3 className="text-xl font-semibold text-gray-900 mb-4">Recommendations</h3>
-            <ul className="space-y-3">
-              {reportData.recommendations.map((rec, index) => (
-                <li key={index} className="flex gap-2">
-                  <span className="text-blue-600">•</span>
-                  <span className="text-gray-700">{rec}</span>
-                </li>
-              ))}
-            </ul>
-          </CardContent>
-        </Card>
+        {sections['Recommendations'] && sections['Recommendations'].length > 0 && (
+          <Card>
+            <CardContent className="pt-6">
+              <h3 className="text-xl font-semibold text-gray-900 mb-4">Recommendations</h3>
+              <ul className="space-y-3">
+                {sections['Recommendations'].map((rec, index) => (
+                  <li key={index} className="flex gap-2">
+                    <span className="text-blue-600">•</span>
+                    <span className="text-gray-700">{rec}</span>
+                  </li>
+                ))}
+              </ul>
+            </CardContent>
+          </Card>
+        )}
       </div>
     );
   };
@@ -159,7 +201,7 @@ export function FullReportModal({ analysis }) {
           {!aiReport && !loading && !error && (
             <div className="text-center py-12">
               <p className="text-gray-600 mb-6">
-                Generate a detailed analysis of your nutritional data
+                Generate a detailed analysis of your food log
               </p>
               <Button onClick={generateAIReport} className="bg-blue-600 hover:bg-blue-700">
                 Generate Report
@@ -171,7 +213,7 @@ export function FullReportModal({ analysis }) {
           {loading && (
             <div className="flex flex-col items-center justify-center py-12">
               <Loader2 className="h-8 w-8 animate-spin text-blue-600 mb-4" />
-              <p className="text-gray-600">Analyzing your nutritional data...</p>
+              <p className="text-gray-600">Analyzing your food log...</p>
             </div>
           )}
 
@@ -198,5 +240,4 @@ export function FullReportModal({ analysis }) {
   );
 }
 
-// Make sure we have both named and default exports
 export default FullReportModal;

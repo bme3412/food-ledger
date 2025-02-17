@@ -1,3 +1,5 @@
+'use client';
+
 import React, { useState } from "react";
 import { FoodLogForm } from "./food-log-form";
 import { TargetProgress } from "./target-progress";
@@ -29,16 +31,17 @@ export function FoodDiaryApp() {
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
+    
+    // Validate input
+    if (!Object.values(formData).some((value) => value.trim())) {
+      setError("Please enter at least one meal to analyze");
+      return;
+    }
+
     setLoading(true);
     setError(null);
     setAnalysis(null);
-
-    if (!Object.values(formData).some((value) => value.trim())) {
-      setError("Please enter at least one meal to analyze");
-      setLoading(false);
-      return;
-    }
 
     try {
       const response = await fetch("/api/analyze", {
@@ -84,12 +87,7 @@ export function FoodDiaryApp() {
         {/* Left Panel - Form and Charts (40% on desktop) */}
         <div className="lg:w-2/5 space-y-6">
           {/* Food Log Form */}
-          <div className="bg-white rounded-xl shadow-sm p-6">
-            <div className="mb-6">
-              <h2 className="text-2xl font-semibold text-gray-900">Daily Food Log</h2>
-              <p className="text-gray-600 mt-1">Record your meals for nutritional analysis</p>
-            </div>
-            
+          <div className="bg-white rounded-xl shadow-sm">
             <FoodLogForm
               formData={formData}
               onChange={handleInputChange}
@@ -99,9 +97,11 @@ export function FoodDiaryApp() {
             />
 
             {error && (
-              <Alert variant="destructive" className="mt-4">
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
+              <div className="p-6 pt-0">
+                <Alert variant="destructive">
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              </div>
             )}
           </div>
 
